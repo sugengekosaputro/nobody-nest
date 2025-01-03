@@ -4,8 +4,9 @@ import { RoleCreateDto } from '../dtos/role.create.dto';
 import { RoleEntity } from '../../entities/role.entity';
 import { TypeormHelper } from '../../helpers/typeorm.helper';
 import { BaseSingleQueryParam } from '../../dtos/base.single.query.param';
-import { RoleSingleQueryParam } from '../dtos/role.single.query.param';
 import { ResponseDto } from '../../dtos/response.dto';
+import { BaseUpdateUsecase } from "../../core/usecases/base.update.usecase";
+import { BaseDeleteUsecase } from "../../core/usecases/base.delete.uscase";
 
 @Injectable()
 export class RoleCreateUsecase {
@@ -42,9 +43,9 @@ export class RoleDetailUsecase {
       validFields,
     ) as Partial<RoleEntity>;
 
+    console.log(where);
     const entity = await this.typeOrmService.roles.findOne({ where });
-
-    // Throw an exception if the entity is not found
+    console.log(entity);
     if (!entity) {
       throw new NotFoundException('Role not found');
     }
@@ -64,14 +65,19 @@ export class RoleFindAllUsecase {
 }
 
 @Injectable()
-export class RoleUpdateUsecase {
+export class RoleUpdateUsecase
+  implements BaseUpdateUsecase<BaseSingleQueryParam, RoleCreateDto, ResponseDto>
+{
   constructor(
     @Inject(ITypeOrmService)
     private readonly typeOrmService: ITypeOrmService,
     private readonly detailUsecase: RoleDetailUsecase,
   ) {}
 
-  async execute(query: BaseSingleQueryParam, payload: RoleCreateDto) {
+  async execute(
+    query: BaseSingleQueryParam,
+    payload: RoleCreateDto,
+  ): Promise<ResponseDto> {
     const existingData = await this.detailUsecase.executeAsEntity(query);
     const entity = Object.assign(existingData, payload);
     await this.typeOrmService.roles.save(entity);
@@ -81,11 +87,20 @@ export class RoleUpdateUsecase {
 }
 
 @Injectable()
-export class RoleDeleteUsecase {
+export class RoleDeleteUsecase
+  implements BaseDeleteUsecase<BaseSingleQueryParam>
+{
   constructor(
     @Inject(ITypeOrmService)
     private readonly typeOrmService: ITypeOrmService,
+    private readonly detailUsecase: RoleDetailUsecase,
   ) {}
 
-  execute() {}
+  async execute(query: BaseSingleQueryParam): Promise<ResponseDto> {
+    const existingData = await this.detailUsecase.executeAsEntity(query);
+    console.log(existingData);
+
+    // await this.typeOrmService.roles.restore(existingData);
+    return new ResponseDto({ message: 'Role deleted' });
+  }
 }

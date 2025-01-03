@@ -1,7 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ITypeOrmService } from '../../core/repository/interfaces/typeorm.service.interface';
-import { RolePayload } from '../dtos/role.payload';
+import { RoleCreateDto } from '../dtos/role.create.dto';
 import { RoleEntity } from '../../entities/role.entity';
+import { TypeormHelper } from '../../helpers/typeorm.helper';
+import { BaseSingleQueryParam } from '../../dtos/base.single.query.param';
+import { RoleSingleQueryParam } from '../dtos/role.single.query.param';
+import { ResponseDto } from '../../dtos/response.dto';
 
 @Injectable()
 export class RoleCreateUsecase {
@@ -10,7 +14,7 @@ export class RoleCreateUsecase {
     private readonly typeOrmService: ITypeOrmService,
   ) {}
 
-  async execute(payload: RolePayload): Promise<string> {
+  async execute(payload: RoleCreateDto): Promise<string> {
     const entity = Object.assign(RoleEntity, payload);
     await this.typeOrmService.roles.save(entity);
 
@@ -19,25 +23,33 @@ export class RoleCreateUsecase {
 }
 
 @Injectable()
-export class RoleFindoneUsecase {
+export class RoleDetailUsecase {
   constructor(
     @Inject(ITypeOrmService)
     private readonly typeOrmService: ITypeOrmService,
   ) {}
 
-  async execute(query: { id?: number; uuid?: string }) {
-    try {
-      const data = await this.typeOrmService.roles.findOne({
-        where: { id: query.id, uuid: query.uuid },
-      });
+  async executeAsResponse(query: BaseSingleQueryParam): Promise<ResponseDto> {
+    const entity = await this.executeAsEntity(query);
+    return new ResponseDto({ message: 'Data Available', data: entity });
+  }
 
-      if (data.id) {
-        return data;
-      }
-    } catch (e) {
-      console.log(e);
+  async executeAsEntity(query: BaseSingleQueryParam): Promise<RoleEntity> {
+    const validFields: Array<keyof BaseSingleQueryParam> = ['id', 'uuid'];
+
+    const where = TypeormHelper.applyCondition(
+      query,
+      validFields,
+    ) as Partial<RoleEntity>;
+
+    const entity = await this.typeOrmService.roles.findOne({ where });
+
+    // Throw an exception if the entity is not found
+    if (!entity) {
+      throw new NotFoundException('Role not found');
     }
 
+    return entity;
   }
 }
 
@@ -56,9 +68,16 @@ export class RoleUpdateUsecase {
   constructor(
     @Inject(ITypeOrmService)
     private readonly typeOrmService: ITypeOrmService,
+    private readonly detailUsecase: RoleDetailUsecase,
   ) {}
 
-  execute() {}
+  async execute(query: BaseSingleQueryParam, payload: RoleCreateDto) {
+    const existingData = await this.detailUsecase.executeAsEntity(query);
+    const entity = Object.assign(existingData, payload);
+    await this.typeOrmService.roles.save(entity);
+
+    return new ResponseDto({ message: 'Role updated' });
+  }
 }
 
 @Injectable()

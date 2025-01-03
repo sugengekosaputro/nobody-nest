@@ -25,7 +25,13 @@ async function bootstrap() {
   // );
 
   app.useGlobalFilters(new GlobalExceptionFilter());
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
   await app.listen(3000);
   // logger.log(`${app_name} (${app_env}) running on port ${app_port}`);
